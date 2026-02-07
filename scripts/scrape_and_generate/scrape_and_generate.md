@@ -1,6 +1,6 @@
 Script: scrape_and_generate.py
-Location: scripts/individual/scrape_and_generate.py
-Test: tests/individual/test_scrape_and_generate.py
+Location: scripts/scrape_and_generate/scrape_and_generate.py
+Test: scripts/scrape_and_generate/test_scrape_and_generate.py
 
 What it does:
 1. Uses pydoll (async CDP browser) to navigate to --website_url and extract full page HTML
@@ -11,7 +11,7 @@ What it does:
 
 Usage:
   export GOOGLE_API_KEY=your_key_here
-  uv run python scripts/individual/scrape_and_generate.py \
+  uv run python scripts/scrape_and_generate/scrape_and_generate.py \
       --website_url https://example.com \
       --context "all product names and prices" \
       --html_filepath output.html \

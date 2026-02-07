@@ -5,7 +5,7 @@ import sys
 
 import pytest
 
-SCRIPT = "scripts/individual/scrape_and_generate.py"
+SCRIPT = "scripts/scrape_and_generate/scrape_and_generate.py"
 
 
 def test_help_on_no_args():
@@ -52,7 +52,7 @@ def test_missing_api_key(monkeypatch):
 
 def test_strip_markdown_fences():
     """strip_markdown_fences removes code fences."""
-    sys.path.insert(0, "scripts/individual")
+    sys.path.insert(0, "scripts/scrape_and_generate")
     from scrape_and_generate import strip_markdown_fences
 
     assert strip_markdown_fences("```python\nprint('hi')\n```") == "print('hi')"

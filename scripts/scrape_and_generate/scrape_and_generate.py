@@ -3,7 +3,7 @@ Script: scrape_and_generate.py
 Purpose: Scrape a webpage with pydoll and generate a BS4 parsing script via Gemini.
 
 Usage:
-    uv run python scripts/individual/scrape_and_generate.py \
+    uv run python scripts/scrape_and_generate/scrape_and_generate.py \
         --website_url https://example.com \
         --context "all product names and prices" \
         --html_filepath output.html \
@@ -70,10 +70,8 @@ if __name__ == "__main__":
 
 
 def log_error(script_name: str, error: Exception) -> None:
-    """Write error details to scripts/errors/individual/<script>.error.log."""
-    error_dir = Path(__file__).resolve().parent.parent / "errors" / "individual"
-    error_dir.mkdir(parents=True, exist_ok=True)
-    log_path = error_dir / f"{script_name}.error.log"
+    """Write error details to scripts/<script_name>/<script>.error.log."""
+    log_path = Path(__file__).resolve().parent / f"{script_name}.error.log"
     entry = (
         f"[{datetime.now(UTC).isoformat()}]\n"
         f"Error: {error}\n"

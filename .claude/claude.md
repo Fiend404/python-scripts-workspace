@@ -21,15 +21,18 @@ Package Management
 - Never use python or python3 directly
 
 File Placement
-- Standalone scripts go in scripts/individual/
-- Multi-file bundles and SDKs go in scripts/groups/<name>/
-- Tests mirror scripts/ structure under tests/
-- Error logs go in scripts/errors/ matching the script path
+- Every script project gets its own folder: scripts/<script_name>/
+- All artifacts for a script live together in that folder:
+  - scripts/<script_name>/<script_name>.py
+  - scripts/<script_name>/test_<script_name>.py
+  - scripts/<script_name>/<script_name>.md
+  - scripts/<script_name>/<script_name>.error.log
 
 Naming Conventions
+- Script folders: snake_case/ (e.g. scripts/fetch_prices/)
 - Scripts: snake_case.py (e.g. fetch_prices.py)
-- Groups: snake_case/ directory (e.g. pricing_sdk/)
 - Tests: test_<script_name>.py
+- Summaries: <script_name>.md
 - Error logs: <script_name>.error.log
 
 Development Workflow — HEREDOC First
@@ -67,15 +70,12 @@ Script Finalization — Saving Validated Code
 - Before saving, ensure the script includes:
   - Module-level docstring with purpose and usage example
   - argparse with help-on-no-args behaviour
-  - Error handling with log_error() writing to scripts/errors/
+  - Error handling with log_error() writing to scripts/<script_name>/
   - Proxy-aware HTTP client (httpx.Client with proxy from env)
   - Type hints on all function signatures
-- Placement rules:
-  - Single-file script: scripts/individual/<name>.py
-  - Multi-file bundle: scripts/groups/<name>/ with __init__.py, client.py, utils.py
+- Placement: scripts/<script_name>/<script_name>.py
 - After saving the .py file, immediately create the matching test file:
-  - scripts/individual/<name>.py -> tests/individual/test_<name>.py
-  - scripts/groups/<name>/ -> tests/groups/<name>/test_client.py
+  - scripts/<script_name>/test_<script_name>.py
 - Add any temporary HEREDOC deps as permanent deps: uv add <package>
 - Run uv run ruff check on the saved file before marking the phase complete
 - MANDATORY: After saving the final .py file, validate it using the analysis subagent:
@@ -85,12 +85,11 @@ Script Finalization — Saving Validated Code
     2. Run the script with sample/test arguments to verify it executes without errors
     3. Validate output matches expected format (JSON schema, stdout, file creation)
     4. Check edge cases: missing args show help, bad input returns non-zero exit code
-    5. Confirm error logging writes to scripts/errors/ on failure
+    5. Confirm error logging writes to scripts/<script_name>/ on failure
   - Do NOT mark the phase as completed until the analysis subagent confirms the script passes
   - If validation fails, fix the script and re-run analysis until it passes
-- MANDATORY: After all validation passes, write a final summary .md file in the same folder as the script:
-  - Filename: <script_name>.md (e.g. scrape_and_generate.md alongside scrape_and_generate.py)
-  - For groups: scripts/groups/<name>/<name>.md
+- MANDATORY: After all validation passes, write a final summary .md file in the script folder:
+  - Filename: scripts/<script_name>/<script_name>.md
   - Contents must include:
     - Script name and location
     - Test file location
@@ -110,9 +109,8 @@ Filepath Validation — MANDATORY AFTER EVERY FILE SAVE
   - The file appears in the expected directory
   - The filename matches the naming convention (snake_case.py, test_<name>.py, <name>.md)
   - Co-located files sit together (e.g. script.py and script.md in the same folder)
-- For individual scripts: tree scripts/individual/ -I __pycache__
-- For groups: tree scripts/groups/<name>/ -I __pycache__
-- For tests: tree tests/ -I __pycache__
+- Per script: tree scripts/<script_name>/ -I __pycache__
+- All scripts: tree scripts/ -I __pycache__
 - NEVER skip this step. Visual confirmation prevents misplaced files from going unnoticed.
 
 Script Requirements
@@ -168,7 +166,7 @@ Proxy Usage
 
 Error Handling
 - Wrap main logic in try/except
-- Log errors to scripts/errors/ with traceback, timestamp, and environment info
+- Log errors to scripts/<script_name>/ with traceback, timestamp, and environment info
 - Never silently swallow exceptions
 - Return non-zero exit code on failure
 
@@ -199,14 +197,11 @@ Project Tree
   │   │       └── agent.md
   │   └── settings.json
   ├── scripts/
-  │   ├── individual/          <-- standalone single-file scripts
-  │   ├── groups/              <-- multi-file bundles and SDKs
-  │   └── errors/
-  │       ├── individual/      <-- error logs per standalone script
-  │       └── groups/          <-- error logs per group
-  ├── tests/
-  │   ├── individual/          <-- mirrors scripts/individual/
-  │   └── groups/              <-- mirrors scripts/groups/
+  │   └── <script_name>/       <-- one folder per script project
+  │       ├── <script_name>.py
+  │       ├── test_<script_name>.py
+  │       ├── <script_name>.md
+  │       └── <script_name>.error.log
   ├── proxy/
   │   ├── proxy.conf
   │   ├── ca_certs/
