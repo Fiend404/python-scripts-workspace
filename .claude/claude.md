@@ -164,6 +164,106 @@ Proxy Usage
   export HTTPS_PROXY=http://5.231.28.18:3128
   ```
 
+Browser Automation — Server Fallback
+- Default to pydoll for browser automation (project dependency)
+- When running on a server and pydoll/Chrome errors occur, fall back to Playwright in headless mode
+- Server errors that trigger fallback:
+  - "Cannot open display" — no X11/display server
+  - "GPU process crashed" — no GPU on server
+  - "No usable sandbox" — sandbox restrictions
+  - "DevToolsActivePort file doesn't exist" — Chrome failed to start
+- Fallback strategy: try pydoll first, catch errors, retry with Playwright headless
+- Playwright is NOT a permanent dependency — use uv run --with for fallback only
+- pydoll primary pattern:
+  ```python
+  import asyncio
+  from pydoll.browser import Chrome
+  from pydoll.browser.options import ChromiumOptions
+
+  async def scrape(url: str) -> str:
+      options = ChromiumOptions()
+      browser = Chrome(options=options)
+      await browser.start()
+      tabs = await browser.get_opened_tabs()
+      page = tabs[0]
+      await page.go_to(url)
+      raw = await page.execute_script("return document.body.innerText")
+      text = raw['result']['result']['value']
+      await browser.stop()
+      return text
+  ```
+- Playwright headless fallback pattern (use when pydoll fails on server):
+  ```python
+  import asyncio
+  from playwright.async_api import async_playwright
+
+  async def scrape_fallback(url: str) -> str:
+      async with async_playwright() as p:
+          browser = await p.chromium.launch(headless=True)
+          page = await browser.new_page()
+          await page.goto(url, wait_until="networkidle")
+          text = await page.inner_text("body")
+          await browser.close()
+          return text
+  ```
+- Combined pattern with automatic fallback:
+  ```python
+  import asyncio
+  import subprocess
+  import sys
+
+  async def scrape_with_fallback(url: str) -> str:
+      # Try pydoll first
+      try:
+          from pydoll.browser import Chrome
+          from pydoll.browser.options import ChromiumOptions
+          options = ChromiumOptions()
+          browser = Chrome(options=options)
+          await browser.start()
+          tabs = await browser.get_opened_tabs()
+          page = tabs[0]
+          await page.go_to(url)
+          raw = await page.execute_script("return document.body.innerText")
+          text = raw['result']['result']['value']
+          await browser.stop()
+          return text
+      except Exception as e:
+          error_msg = str(e).lower()
+          server_errors = ["display", "gpu", "sandbox", "devtoolsactiveport"]
+          if not any(keyword in error_msg for keyword in server_errors):
+              raise
+          print(f"Pydoll failed on server: {e}, falling back to Playwright headless")
+
+      # Fallback to Playwright headless
+      from playwright.async_api import async_playwright
+      async with async_playwright() as p:
+          browser = await p.chromium.launch(headless=True)
+          page = await browser.new_page()
+          await page.goto(url, wait_until="networkidle")
+          text = await page.inner_text("body")
+          await browser.close()
+          return text
+  ```
+- When using Playwright fallback in HEREDOC iteration:
+  ```bash
+  uv run --with playwright python3 << 'EOF'
+  import asyncio
+  from playwright.async_api import async_playwright
+
+  async def main():
+      async with async_playwright() as p:
+          browser = await p.chromium.launch(headless=True)
+          page = await browser.new_page()
+          await page.goto("https://httpbin.org/html")
+          title = await page.title()
+          print(f"Title: {title}")
+          await browser.close()
+
+  asyncio.run(main())
+  EOF
+  ```
+- Ensure Playwright browsers are installed on server: uv run --with playwright python3 -m playwright install chromium
+
 Error Handling
 - Wrap main logic in try/except
 - Log errors to scripts/<script_name>/ with traceback, timestamp, and environment info
@@ -221,19 +321,66 @@ References
 - Never commit real API keys — use .env and api_keys.env.example as templates
 
 Progress Tracking — TodoWrite is MANDATORY
-- Every project MUST use TodoWrite to track all phases and steps
-- Create the full task list BEFORE writing any code, derived from the Scope Identification
-- One task per script/phase (e.g. "Build fetch_prices.py", "Build pricing_sdk group")
-- Each task description must include: purpose, inputs, outputs, dependencies
-- Workflow for every task:
-  1. Mark task as in_progress BEFORE starting work
-  2. Prototype in HEREDOC (Development Workflow)
-  3. Validate output is correct
-  4. Save to .py file (Script Finalization)
-  5. Create test file
-  6. Run ruff check
-  7. Mark task as completed
-- NEVER skip tracking. Every phase, every step gets a TodoWrite entry.
+
+Every project MUST use verbose multi-phase TodoWrite tracking. No exceptions.
+
+Phase 0: Scope and Planning
+- Task: "Define project scope from prompt"
+  - Extract all scripts needed, their purpose, I/O chain, dependencies
+  - Output: full scope breakdown with phases mapped
+  - Mark completed only after scope is fully defined
+
+Phase 1–N: One Phase Per Script (repeat for each script in scope)
+- Each script gets its own phase with granular sub-tasks:
+
+  Task 1: "Phase N — HEREDOC prototype for <script_name>.py"
+    - Write and iterate Python logic in HEREDOC + EOF
+    - Run multiple iterations until output is 100% correct
+    - Mark completed only after HEREDOC output is validated
+
+  Task 2: "Phase N — Save <script_name>.py to scripts/"
+    - Add argparse, docstring, error handling, proxy, type hints
+    - Save to scripts/<script_name>/<script_name>.py
+    - Run: uv add <deps> for any new dependencies
+    - Mark completed only after file is saved
+
+  Task 3: "Phase N — Create test_<script_name>.py"
+    - Write test file mirroring the script
+    - Save to scripts/<script_name>/test_<script_name>.py
+    - Mark completed only after test file is saved
+
+  Task 4: "Phase N — Ruff check <script_name>.py"
+    - Run: uv run ruff check scripts/<script_name>/
+    - Fix any lint errors
+    - Mark completed only after ruff passes clean
+
+  Task 5: "Phase N — Validate <script_name>.py with analysis subagent"
+    - Invoke Task tool with subagent_type="analysis"
+    - Verify: runs without errors, output matches expected format, edge cases handled
+    - Mark completed only after analysis confirms pass
+
+  Task 6: "Phase N — Write <script_name>.md summary"
+    - Write summary doc in scripts/<script_name>/<script_name>.md
+    - Include: what it does, usage, CLI args, deps, validation results
+    - Mark completed only after summary is saved
+
+  Task 7: "Phase N — Filepath validation for <script_name>"
+    - Run: tree scripts/<script_name>/ -I __pycache__
+    - Confirm all files in correct location with correct names
+    - Mark completed only after tree output is verified
+
+Final Phase: Project Completion
+- Task: "Final review — all phases complete"
+  - Check TaskList: every task must show completed
+  - Run: tree scripts/ -I __pycache__ to confirm full project structure
+  - Mark completed only after everything checks out
+
+Tracking Rules
+- Create ALL tasks for ALL phases BEFORE writing any code
+- Set task dependencies using addBlockedBy (Task 2 blocked by Task 1, etc.)
+- Mark in_progress BEFORE starting work on each task
+- Mark completed ONLY when the task is genuinely done — not before
+- If a task fails, keep it as in_progress and fix the issue
 - If new tasks are discovered during implementation, add them immediately
-- Check the task list after completing each task to identify the next one
-- The project is not done until ALL tasks show completed
+- NEVER skip a task. NEVER skip a phase. The project is not done until ALL tasks show completed.
+- After completing each task, check TaskList to identify the next unblocked task
