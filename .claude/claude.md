@@ -33,10 +33,15 @@ Naming Conventions
 - Error logs: <script_name>.error.log
 
 Development Workflow — HEREDOC First
-- NEVER create .py files as a first step. Always prototype using HEREDOC + EOF:
+- NEVER create .py files as a first step. Always prototype Python code inline using Bash HEREDOC + EOF.
+- Write the full Python script inside the HEREDOC block and execute it via uv run:
   ```bash
   uv run python3 << 'EOF'
-  # prototype logic here
+  import json
+  from pathlib import Path
+
+  data = {"status": "ok", "count": 42}
+  print(json.dumps(data, indent=2))
   EOF
   ```
 - Iterate in HEREDOC until the script logic is fully validated and producing correct output
@@ -45,7 +50,13 @@ Development Workflow — HEREDOC First
 - When the script needs dependencies not yet in pyproject.toml, use uv run --with:
   ```bash
   uv run --with httpx --with beautifulsoup4 python3 << 'EOF'
-  # test with temporary deps
+  import httpx
+  from bs4 import BeautifulSoup
+
+  response = httpx.get("https://httpbin.org/html")
+  soup = BeautifulSoup(response.text, "html.parser")
+  print(f"Title: {soup.find('h1').text}")
+  print(f"Status: {response.status_code}")
   EOF
   ```
 - After validation, add permanent deps with uv add before saving the .py file
@@ -67,6 +78,42 @@ Script Finalization — Saving Validated Code
   - scripts/groups/<name>/ -> tests/groups/<name>/test_client.py
 - Add any temporary HEREDOC deps as permanent deps: uv add <package>
 - Run uv run ruff check on the saved file before marking the phase complete
+- MANDATORY: After saving the final .py file, validate it using the analysis subagent:
+  - Invoke: Task tool with subagent_type="analysis"
+  - Prompt the subagent to:
+    1. Read the saved script file
+    2. Run the script with sample/test arguments to verify it executes without errors
+    3. Validate output matches expected format (JSON schema, stdout, file creation)
+    4. Check edge cases: missing args show help, bad input returns non-zero exit code
+    5. Confirm error logging writes to scripts/errors/ on failure
+  - Do NOT mark the phase as completed until the analysis subagent confirms the script passes
+  - If validation fails, fix the script and re-run analysis until it passes
+- MANDATORY: After all validation passes, write a final summary .md file in the same folder as the script:
+  - Filename: <script_name>.md (e.g. scrape_and_generate.md alongside scrape_and_generate.py)
+  - For groups: scripts/groups/<name>/<name>.md
+  - Contents must include:
+    - Script name and location
+    - Test file location
+    - What it does (numbered steps)
+    - Usage example with full CLI invocation
+    - CLI arguments table
+    - Dependencies table
+    - Validation results (tests passed, analysis checks, ruff status)
+    - Any runtime requirements (env vars, credentials, external services)
+  - Follow global .md rules: no heading syntax, no bold/italic syntax, no underline headings
+  - This file is the single source of truth for understanding what the script does and how to run it
+
+Filepath Validation — MANDATORY AFTER EVERY FILE SAVE
+- After saving any script, test, summary, or config file, run tree on the parent directory to confirm correct placement
+- Command: tree {{parent_directory}} -I __pycache__
+- Verify:
+  - The file appears in the expected directory
+  - The filename matches the naming convention (snake_case.py, test_<name>.py, <name>.md)
+  - Co-located files sit together (e.g. script.py and script.md in the same folder)
+- For individual scripts: tree scripts/individual/ -I __pycache__
+- For groups: tree scripts/groups/<name>/ -I __pycache__
+- For tests: tree tests/ -I __pycache__
+- NEVER skip this step. Visual confirmation prevents misplaced files from going unnoticed.
 
 Script Requirements
 - Every script MUST use argparse for CLI arguments
