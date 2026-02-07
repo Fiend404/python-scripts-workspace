@@ -1,0 +1,26 @@
+# Service Endpoints & Base URLs
+# Reference this file when generating scripts that call external APIs.
+
+services:
+  example_api:
+    base_url: https://api.example.com/v1
+    auth_type: bearer
+    rate_limit: 100/min
+    endpoints:
+      - path: /data
+        method: GET
+        description: Fetch data records
+      - path: /data
+        method: POST
+        description: Create a new record
+      - path: /data/{id}
+        method: GET
+        description: Fetch a single record by ID
+
+  # Add more services as needed:
+  # another_service:
+  #   base_url: https://...
+  #   auth_type: api_key
+  #   endpoints:
+  #     - path: /resource
+  #       method: GET

@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+
+# Virtual environments
+.venv/
+venv/
+
+# UV
+.python-version
+
+# Environment
+.env
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Error logs (tracked per-script, but ignore if too noisy)
+# scripts/errors/**/*.error.log
+
+# Proxy secrets
+proxy/ca_certs/*.pem
+proxy/ca_certs/*.crt
+!proxy/ca_certs/.gitkeep
